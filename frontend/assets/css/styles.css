@@ -1,0 +1,75 @@
+body {
+  font-family: 'Playfair Display', serif;
+  background-color: #f8f9fa;
+}
+
+.navbar-brand {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero {
+  background: linear-gradient(135deg, rgba(255, 215, 235, 0.9), rgba(236, 236, 255, 0.9)), url('https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80') center/cover;
+  color: #2d2d2d;
+  padding: 6rem 0;
+}
+
+.hero h1 {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.card-img-top {
+  height: 240px;
+  object-fit: cover;
+}
+
+.footer {
+  background-color: #222;
+  color: #eee;
+  padding: 2rem 0;
+}
+
+.footer a {
+  color: #e0aaff;
+}
+
+.badge-category {
+  background: rgba(138, 43, 226, 0.1);
+  color: #5a189a;
+  border: 1px solid rgba(90, 24, 154, 0.2);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+}
+
+.form-control:focus {
+  box-shadow: 0 0 0 0.25rem rgba(138, 43, 226, 0.25);
+  border-color: #5a189a;
+}
+
+.btn-primary {
+  background-color: #5a189a;
+  border-color: #5a189a;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: #7b2cbf;
+  border-color: #7b2cbf;
+}
+
+.table thead {
+  background-color: #f1e1ff;
+}
+
+.dashboard-card {
+  border-left: 4px solid #5a189a;
+  background: #fff;
+  box-shadow: 0 0.5rem 1rem rgba(90, 24, 154, 0.1);
+}
+
+#productGallery img {
+  max-height: 420px;
+  object-fit: cover;
+}

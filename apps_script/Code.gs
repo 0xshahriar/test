@@ -1,0 +1,569 @@
+const SPREADSHEET_ID = 'REPLACE_WITH_SPREADSHEET_ID';
+const TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
+const ORIGIN = '*'; // Update to your front-end origin once deployed.
+
+function doGet(e) {
+  return handleRequest('GET', e);
+}
+
+function doPost(e) {
+  if (e && e.parameter && e.parameter._method === 'OPTIONS') {
+    return createResponse({ ok: true });
+  }
+  return handleRequest('POST', e);
+}
+
+function handleRequest(method, e) {
+  try {
+    const payload = parsePayload(method, e);
+    const action = (payload.action || '').toString();
+    const token = payload.token || '';
+
+    switch (action) {
+      case 'signup':
+        return createResponse(handleSignup(payload));
+      case 'login':
+        return createResponse(handleLogin(payload));
+      case 'adminSignup':
+        return createResponse(handleAdminSignup(payload));
+      case 'adminLogin':
+        return createResponse(handleAdminLogin(payload));
+      case 'forgotPassword':
+        return createResponse(handleForgotPassword(payload));
+      case 'resetPassword':
+        return createResponse(handleResetPassword(payload));
+      case 'verifyEmail':
+        return createResponse(handleVerifyEmail(payload));
+      case 'listProducts':
+        return createResponse(handleListProducts(payload));
+      case 'getProduct':
+        return createResponse(handleGetProduct(payload));
+      case 'addProduct':
+        return createResponse(requireRole(token, ['admin'], handleAddProduct, payload));
+      case 'updateProduct':
+        return createResponse(requireRole(token, ['admin'], handleUpdateProduct, payload));
+      case 'deleteProduct':
+        return createResponse(requireRole(token, ['admin'], handleDeleteProduct, payload));
+      case 'createOrder':
+        return createResponse(requireRole(token, ['customer', 'admin'], handleCreateOrder, payload));
+      case 'listOrders':
+        return createResponse(requireRole(token, ['admin'], handleListOrders, payload));
+      case 'listContacts':
+        return createResponse(requireRole(token, ['admin'], handleListContacts, payload));
+      case 'submitContact':
+        return createResponse(handleSubmitContact(payload));
+      default:
+        return createResponse({ ok: false, error: 'Unsupported action.' });
+    }
+  } catch (err) {
+    Logger.log(err);
+    return createResponse({ ok: false, error: err.message || err.toString() });
+  }
+}
+
+function parsePayload(method, e) {
+  if (method === 'GET') {
+    const params = e.parameter || {};
+    Object.keys(params).forEach(function (key) {
+      params[key] = sanitize(params[key]);
+    });
+    return params;
+  }
+  if (!e.postData || !e.postData.contents) {
+    return {};
+  }
+  const type = e.postData.type || '';
+  if (type.indexOf('application/json') !== -1) {
+    const json = JSON.parse(e.postData.contents);
+    return sanitizeObject(json);
+  }
+  return sanitizeObject(e.parameter || {});
+}
+
+function sanitize(value) {
+  if (typeof value === 'string') {
+    return value.replace(/[<>]/g, '');
+  }
+  return value;
+}
+
+function sanitizeObject(obj) {
+  const clean = {};
+  Object.keys(obj || {}).forEach(function (key) {
+    clean[key] = sanitize(obj[key]);
+  });
+  return clean;
+}
+
+function createResponse(data) {
+  const json = JSON.stringify(data);
+  const output = ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+  const response = output;
+  response.setHeader('Access-Control-Allow-Origin', ORIGIN);
+  response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  response.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  return response;
+}
+
+function getSheet(name) {
+  return SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(name);
+}
+
+function readRows(sheet) {
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) {
+    return [];
+  }
+  const headers = values[0];
+  return values.slice(1).map(function (row) {
+    const obj = {};
+    headers.forEach(function (header, idx) {
+      obj[header] = row[idx];
+    });
+    return obj;
+  });
+}
+
+function findUserByEmail(email) {
+  if (!email) return null;
+  const sheet = getSheet('Users');
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length < 2) return null;
+  const headers = rows[0];
+  const emailIdx = headers.indexOf('Email');
+  if (emailIdx === -1) return null;
+  for (let i = 1; i < rows.length; i++) {
+    if ((rows[i][emailIdx] || '').toString().toLowerCase() === email.toLowerCase()) {
+      const obj = {};
+      headers.forEach(function (header, idx) {
+        obj[header] = rows[i][idx];
+      });
+      obj._row = i + 1;
+      return obj;
+    }
+  }
+  return null;
+}
+
+function upsertUser(user) {
+  const sheet = getSheet('Users');
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  let rowIndex = user._row || 0;
+  const rowValues = headers.map(function (header) {
+    return user[header] || '';
+  });
+  if (rowIndex) {
+    sheet.getRange(rowIndex, 1, 1, headers.length).setValues([rowValues]);
+  } else {
+    sheet.appendRow(rowValues);
+    rowIndex = sheet.getLastRow();
+  }
+  return rowIndex;
+}
+
+function generateSalt() {
+  return Utilities.getUuid().replace(/-/g, '').slice(0, 16);
+}
+
+function hashPassword(password, salt) {
+  const signature = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + password, Utilities.Charset.UTF_8);
+  return signature.map(function (byte) {
+    const v = (byte < 0 ? byte + 256 : byte).toString(16);
+    return v.length === 1 ? '0' + v : v;
+  }).join('');
+}
+
+function issueToken(email) {
+  const token = Utilities.getUuid();
+  const expiry = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
+  const user = findUserByEmail(email);
+  if (!user) throw new Error('User not found');
+  user.Token = token;
+  user.TokenExpiry = expiry;
+  user.UpdatedAt = new Date().toISOString();
+  upsertUser(user);
+  return { token: token, expiry: expiry };
+}
+
+function requireRole(token, roles, handler, payload) {
+  const user = validateToken(token);
+  if (!user || roles.indexOf(user.Role) === -1) {
+    throw new Error('Unauthorized');
+  }
+  payload._currentUser = user;
+  return handler(payload);
+}
+
+function validateToken(token) {
+  if (!token) return null;
+  const user = findUserByToken(token);
+  if (!user) return null;
+  const expiry = user.TokenExpiry ? new Date(user.TokenExpiry) : null;
+  if (!expiry || expiry.getTime() < Date.now()) {
+    return null;
+  }
+  return user;
+}
+
+function findUserByToken(token) {
+  if (!token) return null;
+  const sheet = getSheet('Users');
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) return null;
+  const headers = values[0];
+  const tokenIdx = headers.indexOf('Token');
+  if (tokenIdx === -1) return null;
+  for (let i = 1; i < values.length; i++) {
+    if ((values[i][tokenIdx] || '').toString() === token) {
+      const obj = {};
+      headers.forEach(function (header, idx) {
+        obj[header] = values[i][idx];
+      });
+      obj._row = i + 1;
+      return obj;
+    }
+  }
+  return null;
+}
+
+function handleSignup(payload) {
+  const email = (payload.email || '').trim().toLowerCase();
+  const password = payload.password || '';
+  const name = payload.name || '';
+  if (!email || !password) {
+    throw new Error('Email and password are required');
+  }
+  if (findUserByEmail(email)) {
+    throw new Error('Account already exists');
+  }
+  const salt = generateSalt();
+  const hash = hashPassword(password, salt);
+  const verificationCode = Utilities.getUuid();
+  const sheet = getSheet('Users');
+  sheet.appendRow([
+    email,
+    name,
+    salt,
+    hash,
+    'customer',
+    '',
+    '',
+    false,
+    verificationCode,
+    '',
+    '',
+    new Date().toISOString(),
+    new Date().toISOString()
+  ]);
+  MailApp.sendEmail({
+    to: email,
+    subject: 'Verify your Tinkling Tales account',
+    htmlBody: 'Your verification code is: <b>' + verificationCode + '</b>'
+  });
+  return { ok: true, message: 'Signup successful. Check your email for verification.' };
+}
+
+function handleLogin(payload) {
+  const email = (payload.email || '').trim().toLowerCase();
+  const password = payload.password || '';
+  const user = findUserByEmail(email);
+  if (!user) {
+    throw new Error('Invalid credentials');
+  }
+  const computed = hashPassword(password, user.Salt);
+  if (computed !== user.PasswordHash) {
+    throw new Error('Invalid credentials');
+  }
+  if (!user.Verified) {
+    throw new Error('Please verify your email before logging in.');
+  }
+  const tokenInfo = issueToken(email);
+  return { ok: true, token: tokenInfo.token, expiry: tokenInfo.expiry, role: user.Role, name: user.Name };
+}
+
+function handleAdminSignup(payload) {
+  const email = (payload.email || '').trim().toLowerCase();
+  const password = payload.password || '';
+  const name = payload.name || '';
+  const adminCode = payload.adminCode || '';
+  if (!email || !password || !adminCode) {
+    throw new Error('Email, password, and admin code are required');
+  }
+  const settings = getSettings();
+  if (!settings.adminCode || settings.adminCode !== adminCode) {
+    throw new Error('Invalid admin code');
+  }
+  if (findUserByEmail(email)) {
+    throw new Error('Account already exists');
+  }
+  const salt = generateSalt();
+  const hash = hashPassword(password, salt);
+  const verificationCode = Utilities.getUuid();
+  const sheet = getSheet('Users');
+  sheet.appendRow([
+    email,
+    name,
+    salt,
+    hash,
+    'admin',
+    '',
+    '',
+    false,
+    verificationCode,
+    '',
+    '',
+    new Date().toISOString(),
+    new Date().toISOString()
+  ]);
+  MailApp.sendEmail({
+    to: email,
+    subject: 'Verify your Tinkling Tales admin account',
+    htmlBody: 'Your admin verification code is: <b>' + verificationCode + '</b>'
+  });
+  return { ok: true, message: 'Admin signup successful. Check your email for verification.' };
+}
+
+function handleAdminLogin(payload) {
+  const response = handleLogin(payload);
+  if (response.role !== 'admin') {
+    throw new Error('Admin privileges required');
+  }
+  return response;
+}
+
+function handleForgotPassword(payload) {
+  const email = (payload.email || '').trim().toLowerCase();
+  const user = findUserByEmail(email);
+  if (!user) {
+    return { ok: true }; // Avoid leaking user existence.
+  }
+  const resetCode = Utilities.getUuid();
+  user.ResetCode = resetCode;
+  user.ResetExpiry = new Date(Date.now() + 1000 * 60 * 30).toISOString();
+  upsertUser(user);
+  MailApp.sendEmail({
+    to: email,
+    subject: 'Reset your Tinkling Tales password',
+    htmlBody: 'Use this code to reset your password: <b>' + resetCode + '</b>'
+  });
+  return { ok: true, message: 'If the email exists, a reset code has been sent.' };
+}
+
+function handleResetPassword(payload) {
+  const email = (payload.email || '').trim().toLowerCase();
+  const resetCode = payload.resetCode || '';
+  const newPassword = payload.newPassword || '';
+  const user = findUserByEmail(email);
+  if (!user || !user.ResetCode || user.ResetCode !== resetCode) {
+    throw new Error('Invalid reset code');
+  }
+  const expiry = user.ResetExpiry ? new Date(user.ResetExpiry) : null;
+  if (!expiry || expiry.getTime() < Date.now()) {
+    throw new Error('Reset code expired');
+  }
+  const salt = generateSalt();
+  const hash = hashPassword(newPassword, salt);
+  user.Salt = salt;
+  user.PasswordHash = hash;
+  user.ResetCode = '';
+  user.ResetExpiry = '';
+  user.UpdatedAt = new Date().toISOString();
+  upsertUser(user);
+  return { ok: true, message: 'Password reset successful.' };
+}
+
+function handleVerifyEmail(payload) {
+  const email = (payload.email || '').trim().toLowerCase();
+  const code = payload.code || '';
+  const user = findUserByEmail(email);
+  if (!user || user.VerificationCode !== code) {
+    throw new Error('Invalid verification code');
+  }
+  user.Verified = true;
+  user.VerificationCode = '';
+  user.UpdatedAt = new Date().toISOString();
+  upsertUser(user);
+  return { ok: true, message: 'Email verified successfully.' };
+}
+
+function handleListProducts(payload) {
+  const sheet = getSheet('Products');
+  const products = readRows(sheet);
+  const query = (payload.query || '').toLowerCase();
+  const category = (payload.category || '').toLowerCase();
+  const statusFilter = (payload.status || 'active').toLowerCase();
+  let filtered = products;
+  if (statusFilter && statusFilter !== 'all') {
+    filtered = filtered.filter(function (product) {
+      return (product.Status || '').toString().toLowerCase() === statusFilter;
+    });
+  }
+  if (query) {
+    filtered = filtered.filter(function (product) {
+      return (
+        (product.Title || '').toString().toLowerCase().indexOf(query) !== -1 ||
+        (product.Description || '').toString().toLowerCase().indexOf(query) !== -1 ||
+        (product.Tags || '').toString().toLowerCase().indexOf(query) !== -1
+      );
+    });
+  }
+  if (category) {
+    filtered = filtered.filter(function (product) {
+      return (product.Category || '').toString().toLowerCase() === category;
+    });
+  }
+  return { ok: true, products: filtered };
+}
+
+function handleGetProduct(payload) {
+  const id = payload.id || '';
+  if (!id) throw new Error('Product ID required');
+  const sheet = getSheet('Products');
+  const products = readRows(sheet);
+  const product = products.find(function (p) {
+    return (p.ID || '').toString() === id.toString();
+  });
+  if (!product) {
+    throw new Error('Product not found');
+  }
+  return { ok: true, product: product };
+}
+
+function handleAddProduct(payload) {
+  const sheet = getSheet('Products');
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const id = Utilities.getUuid();
+  const now = new Date().toISOString();
+  const data = {
+    ID: id,
+    Title: payload.title || '',
+    Description: payload.description || '',
+    Price: Number(payload.price || 0),
+    Category: payload.category || '',
+    Tags: (payload.tags || []).join(', '),
+    ImageUrl: payload.imageUrl || '',
+    Inventory: Number(payload.inventory || 0),
+    Status: payload.status || 'active',
+    CreatedAt: now,
+    UpdatedAt: now
+  };
+  const row = headers.map(function (header) {
+    return data[header] || '';
+  });
+  sheet.appendRow(row);
+  return { ok: true, product: data };
+}
+
+function handleUpdateProduct(payload) {
+  const id = payload.id || '';
+  if (!id) throw new Error('Product ID required');
+  const sheet = getSheet('Products');
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) throw new Error('No products found');
+  const headers = values[0];
+  const idIdx = headers.indexOf('ID');
+  let rowIndex = -1;
+  for (let i = 1; i < values.length; i++) {
+    if ((values[i][idIdx] || '').toString() === id.toString()) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+  if (rowIndex === -1) throw new Error('Product not found');
+  const row = sheet.getRange(rowIndex, 1, 1, headers.length).getValues()[0];
+  const map = {};
+  headers.forEach(function (header, idx) {
+    map[header] = row[idx];
+  });
+  map.Title = payload.title || map.Title;
+  map.Description = payload.description || map.Description;
+  map.Price = payload.price !== undefined ? Number(payload.price) : map.Price;
+  map.Category = payload.category || map.Category;
+  map.Tags = payload.tags ? payload.tags.join(', ') : map.Tags;
+  map.ImageUrl = payload.imageUrl || map.ImageUrl;
+  map.Inventory = payload.inventory !== undefined ? Number(payload.inventory) : map.Inventory;
+  map.Status = payload.status || map.Status;
+  map.UpdatedAt = new Date().toISOString();
+  const updatedRow = headers.map(function (header) {
+    return map[header] || '';
+  });
+  sheet.getRange(rowIndex, 1, 1, headers.length).setValues([updatedRow]);
+  return { ok: true, product: map };
+}
+
+function handleDeleteProduct(payload) {
+  const id = payload.id || '';
+  if (!id) throw new Error('Product ID required');
+  const sheet = getSheet('Products');
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) throw new Error('No products found');
+  const headers = values[0];
+  const idIdx = headers.indexOf('ID');
+  for (let i = 1; i < values.length; i++) {
+    if ((values[i][idIdx] || '').toString() === id.toString()) {
+      sheet.deleteRow(i + 1);
+      return { ok: true };
+    }
+  }
+  throw new Error('Product not found');
+}
+
+function handleCreateOrder(payload) {
+  const user = payload._currentUser;
+  const items = payload.items || [];
+  const total = Number(payload.total || 0);
+  if (!items.length) {
+    throw new Error('Order items required');
+  }
+  const sheet = getSheet('Orders');
+  const now = new Date().toISOString();
+  sheet.appendRow([
+    Utilities.getUuid(),
+    user.Email,
+    JSON.stringify(items),
+    total,
+    'created',
+    'unpaid',
+    now,
+    now
+  ]);
+  return { ok: true, message: 'Order created. Payment pending.' };
+}
+
+function handleListOrders() {
+  const sheet = getSheet('Orders');
+  return { ok: true, orders: readRows(sheet) };
+}
+
+function handleSubmitContact(payload) {
+  const name = payload.name || '';
+  const email = payload.email || '';
+  const subject = payload.subject || '';
+  const message = payload.message || '';
+  const sheet = getSheet('Contacts');
+  sheet.appendRow([
+    Utilities.getUuid(),
+    name,
+    email,
+    subject,
+    message,
+    'new',
+    new Date().toISOString()
+  ]);
+  return { ok: true, message: 'Message received. We will respond soon.' };
+}
+
+function handleListContacts() {
+  const sheet = getSheet('Contacts');
+  return { ok: true, contacts: readRows(sheet) };
+}
+
+function getSettings() {
+  const sheet = getSheet('Settings');
+  const rows = readRows(sheet);
+  const settings = {};
+  rows.forEach(function (row) {
+    settings[row.Key] = row.Value;
+  });
+  return settings;
+}

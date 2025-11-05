@@ -1,0 +1,58 @@
+let pendingEmail = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const signupForm = document.getElementById('signupForm');
+  const signupFeedback = document.getElementById('signupFeedback');
+  const verifySection = document.getElementById('verificationSection');
+  const verifyEmail = document.getElementById('verifyEmail');
+  const verifyForm = document.getElementById('verifyForm');
+  const verifyFeedback = document.getElementById('verifyFeedback');
+
+  if (signupForm) {
+    signupForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      signupFeedback.innerHTML = '';
+      const password = document.getElementById('signupPassword').value;
+      const confirm = document.getElementById('signupConfirm').value;
+      if (password !== confirm) {
+        signupFeedback.innerHTML = '<div class="alert alert-warning">Passwords do not match.</div>';
+        return;
+      }
+      const email = document.getElementById('signupEmail').value.trim();
+      try {
+        const response = await apiRequest('signup', {
+          name: document.getElementById('signupName').value.trim(),
+          email,
+          password
+        });
+        if (!response.ok) throw new Error(response.error || 'Unable to sign up');
+        signupFeedback.innerHTML = `<div class="alert alert-success">${response.message}</div>`;
+        pendingEmail = email;
+        verifyEmail.textContent = email;
+        verifySection.classList.remove('d-none');
+      } catch (error) {
+        console.error(error);
+        signupFeedback.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+      }
+    });
+  }
+
+  if (verifyForm) {
+    verifyForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      verifyFeedback.innerHTML = '';
+      try {
+        const response = await apiRequest('verifyEmail', {
+          email: pendingEmail || document.getElementById('signupEmail').value.trim(),
+          code: document.getElementById('verifyCode').value.trim()
+        });
+        if (!response.ok) throw new Error(response.error || 'Unable to verify');
+        verifyFeedback.innerHTML = `<div class="alert alert-success">${response.message}</div>`;
+        setTimeout(() => (window.location.href = 'login.html'), 1500);
+      } catch (error) {
+        console.error(error);
+        verifyFeedback.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
+      }
+    });
+  }
+});
