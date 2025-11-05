@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!response.ok) throw new Error(response.error || 'Unable to load product');
     const product = response.product;
     renderProduct(product);
+    updateProductMeta(product);
   } catch (error) {
     console.error(error);
     container.innerHTML = '<div class="alert alert-danger">Unable to load product details.</div>';
@@ -63,4 +64,70 @@ function renderProduct(product) {
     container.appendChild(toast);
     setTimeout(() => toast.remove(), 2000);
   });
+}
+
+function updateProductMeta(product) {
+  if (!product) return;
+  const defaultImage = 'https://images.unsplash.com/photo-1525182008055-f88b95ff7980?auto=format&fit=crop&w=1200&q=80';
+  const title = product.Title ? `${product.Title} | Tinkling Tales` : 'Product Detail | Tinkling Tales';
+  const description = (product.Description || 'Discover imaginative storytelling experiences from Tinkling Tales.')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 155);
+  const image = product.ImageUrl || defaultImage;
+  const url = new URL(window.location.href);
+  url.searchParams.set('id', product.ID);
+  document.title = title;
+
+  const metaUpdates = [
+    ['meta[name="description"]', description],
+    ['meta[property="og:title"]', title],
+    ['meta[property="og:description"]', description],
+    ['meta[property="og:url"]', url.toString()],
+    ['meta[property="og:image"]', image],
+    ['meta[property="og:image:alt"]', product.Title || 'Tinkling Tales storytelling kit'],
+    ['meta[name="twitter:title"]', title],
+    ['meta[name="twitter:description"]', description],
+    ['meta[name="twitter:image"]', image],
+    ['meta[name="keywords"]', `${product.Category || 'Story kit'}, Tinkling Tales, ${product.Title || 'storybook'}`]
+  ];
+
+  metaUpdates.forEach(([selector, value]) => {
+    const tag = document.querySelector(selector);
+    if (tag && value) {
+      tag.setAttribute('content', value);
+    }
+  });
+
+  const canonical = document.querySelector('link[rel="canonical"]');
+  if (canonical) {
+    canonical.setAttribute('href', url.toString());
+  }
+
+  const jsonLdEl = document.getElementById('productJsonLd');
+  if (jsonLdEl) {
+    const availability = Number(product.Inventory || 0) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock';
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: product.Title || 'Tinkling Tales Product',
+      brand: {
+        '@type': 'Brand',
+        name: 'Tinkling Tales'
+      },
+      description,
+      image,
+      sku: product.ID,
+      category: product.Category || 'Story Kits',
+      offers: {
+        '@type': 'Offer',
+        priceCurrency: 'USD',
+        price: String(product.Price || '0.00'),
+        availability,
+        url: url.toString()
+      }
+    };
+    jsonLdEl.textContent = JSON.stringify(jsonLd, null, 2);
+  }
 }

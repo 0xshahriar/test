@@ -100,6 +100,11 @@ function updateAuthUI() {
       userName.classList.add('d-none');
     }
   }
+
+  const currentYear = new Date().getFullYear();
+  document.querySelectorAll('.current-year').forEach((el) => {
+    el.textContent = currentYear;
+  });
 }
 
 document.addEventListener('DOMContentLoaded', updateAuthUI);

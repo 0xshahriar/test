@@ -13,22 +13,66 @@ This repository contains a static Bootstrap-based front-end and a Google Apps Sc
 Create a Google Spreadsheet named **Tinkling Tales Platform** with the following tabs and headers:
 
 ### `Users`
-| Email | Name | Salt | PasswordHash | Role | Token | TokenExpiry | Verified | VerificationCode | ResetCode | ResetExpiry | CreatedAt | UpdatedAt |
-|-------|------|------|--------------|------|-------|-------------|----------|------------------|-----------|-------------|-----------|-----------|
-- `Role`: `customer` or `admin`.
-- `TokenExpiry`, `ResetExpiry`: ISO strings.
+| Column | Notes |
+| --- | --- |
+| Email | Primary identifier for each account. |
+| Name | Display name. |
+| Salt | Random salt used for hashing. |
+| PasswordHash | SHA-256 hash of the salted password. |
+| Role | `customer` or `admin`. |
+| Token | Session token issued on login. |
+| TokenExpiry | ISO timestamp for session expiration. |
+| Verified | `TRUE`/`FALSE` flag for email confirmation. |
+| VerificationCode | Latest verification token sent to the user. |
+| ResetCode | One-time password reset code. |
+| ResetExpiry | ISO timestamp for reset code expiration. |
+| CreatedAt | ISO timestamp for record creation. |
+| UpdatedAt | ISO timestamp for last update. |
 
 ### `Products`
-| ID | Title | Description | Price | Category | Tags | ImageUrl | Inventory | Status | CreatedAt | UpdatedAt |
+| Column | Notes |
+| --- | --- |
+| ID | Unique product identifier. |
+| Title | Product name displayed in listings. |
+| Description | Full product description (supports rich text). |
+| Price | Decimal price stored as a string. |
+| Category | Primary collection/category. |
+| Tags | Comma-separated tags for search. |
+| ImageUrl | Public URL for the main product image. |
+| Inventory | Available stock count. |
+| Status | `active` or `draft`. |
+| CreatedAt | ISO timestamp for record creation. |
+| UpdatedAt | ISO timestamp for last update. |
 
 ### `Orders`
-| ID | UserEmail | ItemsJSON | Total | Status | PaymentStatus | CreatedAt | UpdatedAt |
+| Column | Notes |
+| --- | --- |
+| ID | Unique order identifier. |
+| UserEmail | Email of the customer who placed the order. |
+| ItemsJSON | JSON payload describing items (id, title, price, quantity). |
+| Total | Numeric total for the order. |
+| Status | Fulfilment state (e.g., `pending`, `fulfilled`). |
+| PaymentStatus | `paid` / `unpaid`. |
+| CreatedAt | ISO timestamp for record creation. |
+| UpdatedAt | ISO timestamp for last update. |
 
 ### `Contacts`
-| ID | Name | Email | Subject | Message | Status | CreatedAt |
+| Column | Notes |
+| --- | --- |
+| ID | Unique contact message identifier. |
+| Name | Sender name. |
+| Email | Sender email. |
+| Subject | Topic of the inquiry. |
+| Message | Message body. |
+| Status | `new`, `in_progress`, or `archived`. |
+| CreatedAt | ISO timestamp for submission time. |
 
 ### `Settings`
-| Key | Value |
+| Column | Notes |
+| --- | --- |
+| Key | Setting name (e.g., `adminCode`). |
+| Value | Value associated with the key. |
+
 - Store `adminCode` for admin sign-ups and other configuration flags here.
 
 Populate the first row of each sheet with the headers above. The Apps Script assumes headers start at row 1.
