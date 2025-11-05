@@ -2,6 +2,20 @@ const SPREADSHEET_ID = 'REPLACE_WITH_SPREADSHEET_ID';
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 const ORIGIN = '*'; // Update to your front-end origin once deployed.
 
+const RATE_LIMIT_MESSAGES = {
+  login: 'Too many login attempts. Please wait a few minutes and try again.',
+  signup: 'Too many signup attempts. Please try again later.',
+  adminLogin: 'Too many admin login attempts. Please wait and try again.',
+  adminSignup: 'Too many admin signup attempts. Please try again later.'
+};
+
+const RATE_LIMIT_CONFIG = {
+  login: { limit: 5, windowSeconds: 60 * 5 },
+  signup: { limit: 5, windowSeconds: 60 * 60 },
+  adminLogin: { limit: 5, windowSeconds: 60 * 5 },
+  adminSignup: { limit: 5, windowSeconds: 60 * 60 }
+};
+
 function doGet(e) {
   return handleRequest('GET', e);
 }
@@ -93,6 +107,70 @@ function sanitizeObject(obj) {
     clean[key] = sanitize(obj[key]);
   });
   return clean;
+}
+
+function getRateLimitKey(prefix, identifier) {
+  const sanitizedIdentifier = (identifier || 'anonymous').toString().toLowerCase();
+  return ['tt_rate', prefix, sanitizedIdentifier].join(':');
+}
+
+function getRateLimitState(key) {
+  const cache = CacheService.getDocumentCache();
+  if (!cache) return null;
+  const raw = cache.get(key);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.windowStart && parsed.attempts) {
+      return parsed;
+    }
+  } catch (err) {
+    return null;
+  }
+  return null;
+}
+
+function enforceRateLimit(prefix, identifier) {
+  const config = RATE_LIMIT_CONFIG[prefix];
+  if (!config) return;
+  const key = getRateLimitKey(prefix, identifier);
+  const cache = CacheService.getDocumentCache();
+  if (!cache) return;
+  const state = getRateLimitState(key);
+  if (!state) return;
+  const now = Date.now();
+  const windowMs = config.windowSeconds * 1000;
+  if (now - state.windowStart > windowMs) {
+    cache.remove(key);
+    return;
+  }
+  if (state.attempts >= config.limit) {
+    throw new Error(RATE_LIMIT_MESSAGES[prefix] || 'Too many attempts. Please try again later.');
+  }
+}
+
+function recordRateLimitFailure(prefix, identifier) {
+  const config = RATE_LIMIT_CONFIG[prefix];
+  if (!config) return;
+  const cache = CacheService.getDocumentCache();
+  if (!cache) return;
+  const key = getRateLimitKey(prefix, identifier);
+  const windowMs = config.windowSeconds * 1000;
+  const now = Date.now();
+  const state = getRateLimitState(key);
+  let attempts = 1;
+  let windowStart = now;
+  if (state && now - state.windowStart <= windowMs) {
+    attempts = state.attempts + 1;
+    windowStart = state.windowStart;
+  }
+  cache.put(key, JSON.stringify({ attempts: attempts, windowStart: windowStart }), config.windowSeconds);
+}
+
+function clearRateLimit(prefix, identifier) {
+  const cache = CacheService.getDocumentCache();
+  if (!cache) return;
+  cache.remove(getRateLimitKey(prefix, identifier));
 }
 
 function createResponse(data) {
@@ -230,55 +308,74 @@ function handleSignup(payload) {
   const email = (payload.email || '').trim().toLowerCase();
   const password = payload.password || '';
   const name = payload.name || '';
-  if (!email || !password) {
-    throw new Error('Email and password are required');
+  const identifier = email || (payload.deviceId || '') || 'anonymous';
+  enforceRateLimit('signup', identifier);
+  try {
+    if (!email || !password) {
+      throw new Error('Email and password are required');
+    }
+    if (findUserByEmail(email)) {
+      throw new Error('Account already exists');
+    }
+    const salt = generateSalt();
+    const hash = hashPassword(password, salt);
+    const verificationCode = Utilities.getUuid();
+    const sheet = getSheet('Users');
+    sheet.appendRow([
+      email,
+      name,
+      salt,
+      hash,
+      'customer',
+      '',
+      '',
+      false,
+      verificationCode,
+      '',
+      '',
+      new Date().toISOString(),
+      new Date().toISOString()
+    ]);
+    MailApp.sendEmail({
+      to: email,
+      subject: 'Verify your Tinkling Tales account',
+      htmlBody: 'Your verification code is: <b>' + verificationCode + '</b>'
+    });
+    clearRateLimit('signup', identifier);
+    return { ok: true, message: 'Signup successful. Check your email for verification.' };
+  } catch (error) {
+    recordRateLimitFailure('signup', identifier);
+    throw error;
   }
-  if (findUserByEmail(email)) {
-    throw new Error('Account already exists');
-  }
-  const salt = generateSalt();
-  const hash = hashPassword(password, salt);
-  const verificationCode = Utilities.getUuid();
-  const sheet = getSheet('Users');
-  sheet.appendRow([
-    email,
-    name,
-    salt,
-    hash,
-    'customer',
-    '',
-    '',
-    false,
-    verificationCode,
-    '',
-    '',
-    new Date().toISOString(),
-    new Date().toISOString()
-  ]);
-  MailApp.sendEmail({
-    to: email,
-    subject: 'Verify your Tinkling Tales account',
-    htmlBody: 'Your verification code is: <b>' + verificationCode + '</b>'
-  });
-  return { ok: true, message: 'Signup successful. Check your email for verification.' };
 }
 
 function handleLogin(payload) {
   const email = (payload.email || '').trim().toLowerCase();
   const password = payload.password || '';
-  const user = findUserByEmail(email);
-  if (!user) {
-    throw new Error('Invalid credentials');
+  const identifier = email || (payload.deviceId || '') || 'anonymous';
+  enforceRateLimit('login', identifier);
+  try {
+    if (!email || !password) {
+      throw new Error('Email and password are required');
+    }
+    const user = findUserByEmail(email);
+    if (!user) {
+      throw new Error('Invalid credentials');
+    }
+    const computed = hashPassword(password, user.Salt);
+    if (computed !== user.PasswordHash) {
+      throw new Error('Invalid credentials');
+    }
+    if (!user.Verified) {
+      throw new Error('Please verify your email before logging in.');
+    }
+    const tokenInfo = issueToken(email);
+    clearRateLimit('login', identifier);
+    return { ok: true, token: tokenInfo.token, expiry: tokenInfo.expiry, role: user.Role, name: user.Name };
+  } catch (error) {
+    recordRateLimitFailure('login', identifier);
+    throw error;
   }
-  const computed = hashPassword(password, user.Salt);
-  if (computed !== user.PasswordHash) {
-    throw new Error('Invalid credentials');
-  }
-  if (!user.Verified) {
-    throw new Error('Please verify your email before logging in.');
-  }
-  const tokenInfo = issueToken(email);
-  return { ok: true, token: tokenInfo.token, expiry: tokenInfo.expiry, role: user.Role, name: user.Name };
 }
 
 function handleAdminSignup(payload) {
@@ -286,49 +383,66 @@ function handleAdminSignup(payload) {
   const password = payload.password || '';
   const name = payload.name || '';
   const adminCode = payload.adminCode || '';
-  if (!email || !password || !adminCode) {
-    throw new Error('Email, password, and admin code are required');
+  const identifier = email || (payload.deviceId || '') || 'anonymous';
+  enforceRateLimit('adminSignup', identifier);
+  try {
+    if (!email || !password || !adminCode) {
+      throw new Error('Email, password, and admin code are required');
+    }
+    const settings = getSettings();
+    if (!settings.adminCode || settings.adminCode !== adminCode) {
+      throw new Error('Invalid admin code');
+    }
+    if (findUserByEmail(email)) {
+      throw new Error('Account already exists');
+    }
+    const salt = generateSalt();
+    const hash = hashPassword(password, salt);
+    const verificationCode = Utilities.getUuid();
+    const sheet = getSheet('Users');
+    sheet.appendRow([
+      email,
+      name,
+      salt,
+      hash,
+      'admin',
+      '',
+      '',
+      false,
+      verificationCode,
+      '',
+      '',
+      new Date().toISOString(),
+      new Date().toISOString()
+    ]);
+    MailApp.sendEmail({
+      to: email,
+      subject: 'Verify your Tinkling Tales admin account',
+      htmlBody: 'Your admin verification code is: <b>' + verificationCode + '</b>'
+    });
+    clearRateLimit('adminSignup', identifier);
+    return { ok: true, message: 'Admin signup successful. Check your email for verification.' };
+  } catch (error) {
+    recordRateLimitFailure('adminSignup', identifier);
+    throw error;
   }
-  const settings = getSettings();
-  if (!settings.adminCode || settings.adminCode !== adminCode) {
-    throw new Error('Invalid admin code');
-  }
-  if (findUserByEmail(email)) {
-    throw new Error('Account already exists');
-  }
-  const salt = generateSalt();
-  const hash = hashPassword(password, salt);
-  const verificationCode = Utilities.getUuid();
-  const sheet = getSheet('Users');
-  sheet.appendRow([
-    email,
-    name,
-    salt,
-    hash,
-    'admin',
-    '',
-    '',
-    false,
-    verificationCode,
-    '',
-    '',
-    new Date().toISOString(),
-    new Date().toISOString()
-  ]);
-  MailApp.sendEmail({
-    to: email,
-    subject: 'Verify your Tinkling Tales admin account',
-    htmlBody: 'Your admin verification code is: <b>' + verificationCode + '</b>'
-  });
-  return { ok: true, message: 'Admin signup successful. Check your email for verification.' };
 }
 
 function handleAdminLogin(payload) {
-  const response = handleLogin(payload);
-  if (response.role !== 'admin') {
-    throw new Error('Admin privileges required');
+  const email = (payload.email || '').trim().toLowerCase();
+  const identifier = email || (payload.deviceId || '') || 'anonymous';
+  enforceRateLimit('adminLogin', identifier);
+  try {
+    const response = handleLogin(payload);
+    if (response.role !== 'admin') {
+      throw new Error('Admin privileges required');
+    }
+    clearRateLimit('adminLogin', identifier);
+    return response;
+  } catch (error) {
+    recordRateLimitFailure('adminLogin', identifier);
+    throw error;
   }
-  return response;
 }
 
 function handleForgotPassword(payload) {

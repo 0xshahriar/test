@@ -7,11 +7,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const verifyEmail = document.getElementById('adminVerifyEmail');
   const verifyForm = document.getElementById('adminVerifyForm');
   const verifyFeedback = document.getElementById('adminVerifyFeedback');
+  const limiter = createClientRateLimiter('adminSignup', 5, 60 * 60 * 1000);
 
   if (signupForm) {
     signupForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       signupFeedback.innerHTML = '';
+      if (!limiter.canAttempt()) {
+        const wait = formatRateLimitDuration(limiter.getRemainingMs());
+        signupFeedback.innerHTML = `<div class="alert alert-warning">Too many admin signup attempts. Please wait ${wait} before trying again.</div>`;
+        return;
+      }
       try {
         const email = document.getElementById('adminSignupEmail').value.trim();
         const response = await apiRequest('adminSignup', {
@@ -25,8 +31,10 @@ document.addEventListener('DOMContentLoaded', () => {
         verifySection.classList.remove('d-none');
         adminPendingEmail = email;
         verifyEmail.textContent = email;
+        limiter.recordSuccess();
       } catch (error) {
         console.error(error);
+        limiter.recordFailure();
         signupFeedback.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
       }
     });

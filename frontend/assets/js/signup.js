@@ -7,11 +7,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const verifyEmail = document.getElementById('verifyEmail');
   const verifyForm = document.getElementById('verifyForm');
   const verifyFeedback = document.getElementById('verifyFeedback');
+  const limiter = createClientRateLimiter('signup', 5, 60 * 60 * 1000);
 
   if (signupForm) {
     signupForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       signupFeedback.innerHTML = '';
+      if (!limiter.canAttempt()) {
+        const wait = formatRateLimitDuration(limiter.getRemainingMs());
+        signupFeedback.innerHTML = `<div class="alert alert-warning">Too many signup attempts. Please wait ${wait} before trying again.</div>`;
+        return;
+      }
       const password = document.getElementById('signupPassword').value;
       const confirm = document.getElementById('signupConfirm').value;
       if (password !== confirm) {
@@ -30,8 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
         pendingEmail = email;
         verifyEmail.textContent = email;
         verifySection.classList.remove('d-none');
+        limiter.recordSuccess();
       } catch (error) {
         console.error(error);
+        limiter.recordFailure();
         signupFeedback.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;
       }
     });

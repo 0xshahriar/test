@@ -26,8 +26,106 @@ function getAuthToken() {
   return session.token;
 }
 
+function getDeviceId() {
+  try {
+    let deviceId = localStorage.getItem('tt_device_id');
+    if (!deviceId) {
+      deviceId = crypto.randomUUID ? crypto.randomUUID() : `tt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      localStorage.setItem('tt_device_id', deviceId);
+    }
+    return deviceId;
+  } catch (error) {
+    return 'anonymous';
+  }
+}
+
+function createClientRateLimiter(key, limit, windowMs) {
+  const storageKey = `tt_rl_${key}`;
+
+  function readState() {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || typeof data.attempts !== 'number' || typeof data.firstAttempt !== 'number') {
+        return null;
+      }
+      return data;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeState(state) {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(state));
+    } catch (error) {
+      // Ignore storage errors (e.g., private browsing)
+    }
+  }
+
+  function clearState() {
+    try {
+      localStorage.removeItem(storageKey);
+    } catch (error) {
+      // Ignore storage errors
+    }
+  }
+
+  return {
+    canAttempt() {
+      const state = readState();
+      if (!state) return true;
+      const now = Date.now();
+      if (now - state.firstAttempt > windowMs) {
+        clearState();
+        return true;
+      }
+      return state.attempts < limit;
+    },
+    recordFailure() {
+      const now = Date.now();
+      const state = readState();
+      if (!state || now - state.firstAttempt > windowMs) {
+        writeState({ attempts: 1, firstAttempt: now });
+      } else {
+        state.attempts += 1;
+        writeState(state);
+      }
+    },
+    recordSuccess() {
+      clearState();
+    },
+    getRemainingMs() {
+      const state = readState();
+      if (!state) return 0;
+      const remaining = windowMs - (Date.now() - state.firstAttempt);
+      return remaining > 0 ? remaining : 0;
+    }
+  };
+}
+
+function formatRateLimitDuration(ms) {
+  if (!ms || ms <= 0) {
+    return 'a moment';
+  }
+  const seconds = Math.ceil(ms / 1000);
+  if (seconds >= 3600) {
+    const hours = Math.ceil(seconds / 3600);
+    return `${hours} hour${hours > 1 ? 's' : ''}`;
+  }
+  if (seconds >= 60) {
+    const minutes = Math.ceil(seconds / 60);
+    return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+  }
+  return `${seconds} second${seconds > 1 ? 's' : ''}`;
+}
+
 async function apiRequest(action, data = {}, method = 'POST') {
   const payload = Object.assign({}, data, { action });
+  if (!payload.deviceId) {
+    payload.deviceId = getDeviceId();
+  }
   const token = getAuthToken();
   if (token && !payload.token) {
     payload.token = token;
