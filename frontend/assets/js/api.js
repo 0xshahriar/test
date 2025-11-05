@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
+const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbwuUymijz8BmBB-8jhSOmlDdGWAu1rn-iraiQTCmFiDrtbbwT8ob5BROA9ThUMh2ii3/exec';
 
 function parseDateTime(value) {
   if (!value) return null;
