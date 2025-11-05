@@ -1,7 +1,7 @@
-const SPREADSHEET_ID = 'REPLACE_WITH_SPREADSHEET_ID';
+const SPREADSHEET_ID = '16Mh-SI3sMb61qg0mkd46numaHoOCWo1VeD2KI3Q2tXs';
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 const ORIGIN = '*'; // Update to your front-end origin once deployed.
-const PASSWORD_SALT = 'REPLACE_WITH_SECURE_STATIC_SALT';
+const PASSWORD_SALT = 'Test123';
 const SCRIPT_TIMEZONE = Session.getScriptTimeZone() || 'Etc/UTC';
 
 const RATE_LIMIT_MESSAGES = {
