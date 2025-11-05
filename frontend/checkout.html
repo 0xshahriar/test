@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout | Tinkling Tales</title>
+  <meta name="description" content="Submit your shipping details to reserve your handcrafted Tinkling Tales order. Payment integration coming soon.">
+  <meta name="keywords" content="Tinkling Tales checkout, reserve order, storytelling gifts">
+  <meta name="author" content="Tinkling Tales">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="https://tinklingtales.github.io/checkout.html">
+  <meta property="og:site_name" content="Tinkling Tales">
+  <meta property="og:title" content="Checkout | Tinkling Tales">
+  <meta property="og:description" content="Submit your shipping details to reserve your handcrafted Tinkling Tales order. Payment integration coming soon.">
+  <meta property="og:url" content="https://tinklingtales.github.io/checkout.html">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1600&q=80">
+  <meta property="og:image:alt" content="Customer preparing to complete a Tinkling Tales order">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@tinklingtales">
+  <meta name="twitter:title" content="Checkout | Tinkling Tales">
+  <meta name="twitter:description" content="Submit your shipping details to reserve your handcrafted Tinkling Tales order. Payment integration coming soon.">
+  <meta name="twitter:image" content="https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1600&q=80">
+  <meta name="theme-color" content="#5a189a">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "CheckoutPage",
+      "name": "Tinkling Tales Checkout",
+      "url": "https://tinklingtales.github.io/checkout.html",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Tinkling Tales"
+      }
+    }
+  </script>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+    <div class="container">
+      <a class="navbar-brand" href="index.html">Tinkling Tales</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="mainNav">
+        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link" href="products.html">Shop</a></li>
+          <li class="nav-item"><a class="nav-link" href="contact.html">Contact</a></li>
+          <li class="nav-item"><a class="nav-link position-relative" href="cart.html">Cart <span class="badge bg-primary rounded-pill ms-1 d-none" data-cart-count></span></a></li>
+          <li class="nav-item d-none" data-auth-link="account"><a class="nav-link" href="account.html">Account</a></li>
+          <li class="nav-item" data-auth-link="signup"><a class="nav-link" href="signup.html">Join</a></li>
+          <li class="nav-item" data-auth-link="login"><a class="nav-link" href="login.html">Login</a></li>
+          <li class="nav-item d-none" data-auth-link="dashboard"><a class="nav-link" href="admin/dashboard.html">Admin</a></li>
+          <li class="nav-item d-none" data-auth-link="logout"><a class="nav-link" href="#">Logout</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="py-5">
+    <div class="container">
+      <h1 class="fw-bold mb-4">Checkout</h1>
+      <div class="row g-4">
+        <div class="col-lg-7">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <h5 class="card-title">Shipping Information</h5>
+              <p class="text-muted">Payment integration is coming soon. Complete this placeholder form to reserve your order.</p>
+              <form id="checkoutForm" class="row g-3">
+                <div class="col-md-6">
+                  <label for="fullName" class="form-label">Full Name</label>
+                  <input type="text" class="form-control" id="fullName" required>
+                </div>
+                <div class="col-md-6">
+                  <label for="phone" class="form-label">Phone</label>
+                  <input type="tel" class="form-control" id="phone" required>
+                </div>
+                <div class="col-12">
+                  <label for="address" class="form-label">Address</label>
+                  <textarea class="form-control" id="address" rows="3" required></textarea>
+                </div>
+                <div class="col-12">
+                  <button type="submit" class="btn btn-primary">Place Order (Unpaid)</button>
+                </div>
+              </form>
+              <div id="checkoutMessage" class="mt-3"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="card shadow-sm border-0">
+            <div class="card-body">
+              <h5 class="card-title">Order Summary</h5>
+              <div id="checkoutSummary"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="row gy-3 align-items-center text-center text-md-start">
+        <div class="col-md-6">
+          <div class="mb-2 d-none" data-user-name></div>
+          <p class="mb-0">&copy; <span class="current-year"></span> Tinkling Tales. We're preparing delightful deliveries.</p>
+        </div>
+        <div class="col-md-6">
+          <div class="social-links d-flex justify-content-center justify-content-md-end">
+            <a href="https://www.instagram.com/tinklingtales" target="_blank" rel="noopener noreferrer" aria-label="Follow Tinkling Tales on Instagram">
+              <i class="bi bi-instagram"></i><span>@tinklingtales</span>
+            </a>
+            <a href="https://www.facebook.com/tinklingtales" target="_blank" rel="noopener noreferrer" aria-label="Connect with Tinkling Tales on Facebook">
+              <i class="bi bi-facebook"></i><span>@tinklingtales</span>
+            </a>
+            <a href="https://m.me/tinklingtales" target="_blank" rel="noopener noreferrer" aria-label="Message Tinkling Tales on Messenger">
+              <i class="bi bi-messenger"></i><span>@tinklingtales</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/checkout.js"></script>
+</body>
+</html>

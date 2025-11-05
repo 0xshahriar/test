@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login | Tinkling Tales</title>
+  <meta name="description" content="Securely access the Tinkling Tales admin console to manage products, orders, and community messages.">
+  <meta name="keywords" content="Tinkling Tales admin login, storefront management">
+  <meta name="author" content="Tinkling Tales">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="https://tinklingtales.github.io/admin/login.html">
+  <meta property="og:site_name" content="Tinkling Tales">
+  <meta property="og:title" content="Admin Login | Tinkling Tales">
+  <meta property="og:description" content="Securely access the Tinkling Tales admin console to manage products, orders, and community messages.">
+  <meta property="og:url" content="https://tinklingtales.github.io/admin/login.html">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1600&q=80">
+  <meta property="og:image:alt" content="Team collaborating on Tinkling Tales operations">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@tinklingtales">
+  <meta name="twitter:title" content="Admin Login | Tinkling Tales">
+  <meta name="twitter:description" content="Securely access the Tinkling Tales admin console to manage products, orders, and community messages.">
+  <meta name="twitter:image" content="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1600&q=80">
+  <meta name="theme-color" content="#5a189a">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="../assets/css/styles.css">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "name": "Tinkling Tales Admin Login",
+      "url": "https://tinklingtales.github.io/admin/login.html"
+    }
+  </script>
+</head>
+<body class="d-flex flex-column min-vh-100 bg-light">
+  <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+    <div class="container">
+      <a class="navbar-brand" href="../index.html">Tinkling Tales</a>
+      <div class="d-flex gap-2">
+        <a href="../login.html" class="btn btn-outline-secondary btn-sm">Customer Login</a>
+        <a href="signup.html" class="btn btn-primary btn-sm">Admin Request</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="flex-grow-1 d-flex align-items-center py-5">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-lg-5">
+          <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+              <h1 class="h4 fw-bold mb-3 text-center">Admin Console</h1>
+              <form id="adminLoginForm" class="row g-3">
+                <div class="col-12">
+                  <label for="adminLoginEmail" class="form-label">Email</label>
+                  <input type="email" class="form-control" id="adminLoginEmail" required>
+                </div>
+                <div class="col-12">
+                  <label for="adminLoginPassword" class="form-label">Password</label>
+                  <input type="password" class="form-control" id="adminLoginPassword" required>
+                </div>
+                <div class="col-12 d-grid">
+                  <button type="submit" class="btn btn-primary">Login</button>
+                </div>
+              </form>
+              <div id="adminLoginFeedback" class="mt-3"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer mt-auto">
+    <div class="container">
+      <div class="row gy-3 align-items-center text-center text-md-start">
+        <div class="col-md-6">
+          <p class="mb-0">&copy; <span class="current-year"></span> Tinkling Tales. Secure access for storytellers in charge.</p>
+        </div>
+        <div class="col-md-6">
+          <div class="social-links d-flex justify-content-center justify-content-md-end">
+            <a href="https://www.instagram.com/tinklingtales" target="_blank" rel="noopener noreferrer" aria-label="Follow Tinkling Tales on Instagram">
+              <i class="bi bi-instagram"></i><span>@tinklingtales</span>
+            </a>
+            <a href="https://www.facebook.com/tinklingtales" target="_blank" rel="noopener noreferrer" aria-label="Connect with Tinkling Tales on Facebook">
+              <i class="bi bi-facebook"></i><span>@tinklingtales</span>
+            </a>
+            <a href="https://m.me/tinklingtales" target="_blank" rel="noopener noreferrer" aria-label="Message Tinkling Tales on Messenger">
+              <i class="bi bi-messenger"></i><span>@tinklingtales</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="../assets/js/api.js"></script>
+  <script src="../assets/js/admin-login.js"></script>
+</body>
+</html>
