@@ -68,4 +68,16 @@ function renderCart() {
 
 document.addEventListener('DOMContentLoaded', () => {
   renderCart();
+  const checkoutBtn = document.getElementById('checkoutBtn');
+  if (checkoutBtn) {
+    checkoutBtn.addEventListener('click', (event) => {
+      const session = getStoredSession();
+      if (!session || session.role !== 'customer') {
+        event.preventDefault();
+        const loginUrl = new URL('login.html', window.location.href);
+        loginUrl.searchParams.set('next', 'checkout.html');
+        window.location.href = loginUrl.toString();
+      }
+    });
+  }
 });

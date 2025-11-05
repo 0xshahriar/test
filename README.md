@@ -51,10 +51,14 @@ Create a Google Spreadsheet named **Tinkling Tales Platform** with the following
 | UserEmail | Email of the customer who placed the order. |
 | ItemsJSON | JSON payload describing items (id, title, price, quantity). |
 | Total | Numeric total for the order. |
-| Status | Fulfilment state (e.g., `pending`, `fulfilled`). |
+| Status | Fulfilment state (`pending`, `confirmed`, `delivered`, `cancelled`). |
 | PaymentStatus | `paid` / `unpaid`. |
 | CreatedAt | ISO timestamp for record creation. |
 | UpdatedAt | ISO timestamp for last update. |
+
+Customers may cancel their own orders while they remain in the `pending` state; once an order is moved to `confirmed` or `delivered`, cancellation is blocked automatically.
+
+Customers can also delete their accounts from the storefront. The Apps Script backend erases the user profile alongside related orders and contact records to honour the request.
 
 ### `Contacts`
 | Column | Notes |

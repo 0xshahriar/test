@@ -46,7 +46,10 @@
           <li class="nav-item"><a class="nav-link" href="products.html">Shop</a></li>
           <li class="nav-item"><a class="nav-link" href="contact.html">Contact</a></li>
           <li class="nav-item"><a class="nav-link position-relative" href="cart.html">Cart <span class="badge bg-primary rounded-pill ms-1 d-none" data-cart-count></span></a></li>
-          <li class="nav-item" data-auth-link="signup"><a class="nav-link" href="signup.html">Join</a></li>
+          <li class="nav-item d-none" data-auth-link="account"><a class="nav-link" href="account.html">Account</a></li>
+          <li class="nav-item" data-auth-link="signup"><a class="nav-link" href="signup.html" data-forward-signup>Join</a></li>
+          <li class="nav-item" data-auth-link="login"><a class="nav-link" href="login.html">Login</a></li>
+          <li class="nav-item d-none" data-auth-link="dashboard"><a class="nav-link" href="admin/dashboard.html">Admin</a></li>
           <li class="nav-item d-none" data-auth-link="logout"><a class="nav-link" href="#">Logout</a></li>
         </ul>
       </div>
@@ -75,7 +78,7 @@
                 </div>
               </form>
               <div id="loginFeedback" class="mt-3"></div>
-              <p class="mt-4 text-center text-muted">Need an account? <a href="signup.html">Sign up</a>.<br>Admin? <a href="admin/login.html">Login here</a>.</p>
+              <p class="mt-4 text-center text-muted">Need an account? <a href="signup.html" data-forward-signup>Sign up</a>.<br>Admin? <a href="admin/login.html">Login here</a>.</p>
             </div>
           </div>
         </div>

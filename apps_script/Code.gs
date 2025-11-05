@@ -59,11 +59,17 @@ function handleRequest(method, e) {
       case 'deleteProduct':
         return createResponse(requireRole(token, ['admin'], handleDeleteProduct, payload));
       case 'createOrder':
-        return createResponse(requireRole(token, ['customer', 'admin'], handleCreateOrder, payload));
+        return createResponse(requireRole(token, ['customer'], handleCreateOrder, payload));
+      case 'listMyOrders':
+        return createResponse(requireRole(token, ['customer'], handleListMyOrders, payload));
+      case 'cancelOrder':
+        return createResponse(requireRole(token, ['customer'], handleCancelOrder, payload));
       case 'listOrders':
         return createResponse(requireRole(token, ['admin'], handleListOrders, payload));
       case 'listContacts':
         return createResponse(requireRole(token, ['admin'], handleListContacts, payload));
+      case 'deleteAccount':
+        return createResponse(requireRole(token, ['customer', 'admin'], handleDeleteAccount, payload));
       case 'submitContact':
         return createResponse(handleSubmitContact(payload));
       default:
@@ -371,7 +377,14 @@ function handleLogin(payload) {
     }
     const tokenInfo = issueToken(email);
     clearRateLimit('login', identifier);
-    return { ok: true, token: tokenInfo.token, expiry: tokenInfo.expiry, role: user.Role, name: user.Name };
+    return {
+      ok: true,
+      token: tokenInfo.token,
+      expiry: tokenInfo.expiry,
+      role: user.Role,
+      name: user.Name,
+      email: user.Email
+    };
   } catch (error) {
     recordRateLimitFailure('login', identifier);
     throw error;
@@ -636,12 +649,104 @@ function handleCreateOrder(payload) {
     user.Email,
     JSON.stringify(items),
     total,
-    'created',
+    'pending',
     'unpaid',
     now,
     now
   ]);
-  return { ok: true, message: 'Order created. Payment pending.' };
+  return { ok: true, message: 'Order created. Status is pending until confirmed.' };
+}
+
+function findOrderById(orderId) {
+  if (!orderId) return null;
+  const sheet = getSheet('Orders');
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) return null;
+  const headers = values[0];
+  const idIdx = headers.indexOf('ID');
+  if (idIdx === -1) return null;
+  for (let i = 1; i < values.length; i++) {
+    if ((values[i][idIdx] || '').toString() === orderId.toString()) {
+      const obj = {};
+      headers.forEach(function (header, idx) {
+        obj[header] = values[i][idx];
+      });
+      return { order: obj, rowIndex: i + 1, headers: headers, sheet: sheet };
+    }
+  }
+  return null;
+}
+
+function handleListMyOrders(payload) {
+  const user = payload._currentUser;
+  const sheet = getSheet('Orders');
+  const orders = readRows(sheet).filter(function (order) {
+    return (order.UserEmail || '').toString().toLowerCase() === user.Email.toLowerCase();
+  });
+  return { ok: true, orders: orders };
+}
+
+function handleCancelOrder(payload) {
+  const user = payload._currentUser;
+  const orderId = payload.orderId || '';
+  if (!orderId) {
+    throw new Error('Order ID required');
+  }
+  const match = findOrderById(orderId);
+  if (!match || !match.order) {
+    throw new Error('Order not found');
+  }
+  if ((match.order.UserEmail || '').toString().toLowerCase() !== user.Email.toLowerCase()) {
+    throw new Error('Order not found');
+  }
+  const status = (match.order.Status || '').toString().toLowerCase();
+  if (status !== 'pending') {
+    throw new Error('Order can no longer be cancelled.');
+  }
+  match.order.Status = 'cancelled';
+  match.order.UpdatedAt = new Date().toISOString();
+  const updatedRow = match.headers.map(function (header) {
+    return match.order[header] || '';
+  });
+  match.sheet.getRange(match.rowIndex, 1, 1, match.headers.length).setValues([updatedRow]);
+  return { ok: true, order: match.order };
+}
+
+function removeRowsByEmail(sheetName, columnName, email) {
+  if (!email) return;
+  const sheet = getSheet(sheetName);
+  if (!sheet) return;
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return;
+  const headers = data[0];
+  const columnIndex = headers.indexOf(columnName);
+  if (columnIndex === -1) return;
+  for (let i = data.length - 1; i >= 1; i--) {
+    if ((data[i][columnIndex] || '').toString().toLowerCase() === email.toLowerCase()) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+}
+
+function handleDeleteAccount(payload) {
+  const user = payload._currentUser;
+  const password = payload.password || '';
+  if (!password) {
+    throw new Error('Password confirmation is required.');
+  }
+  const userRecord = findUserByEmail(user.Email);
+  if (!userRecord) {
+    throw new Error('Account not found');
+  }
+  const computed = hashPassword(password, userRecord.Salt);
+  if (computed !== userRecord.PasswordHash) {
+    throw new Error('Invalid password.');
+  }
+  const usersSheet = getSheet('Users');
+  usersSheet.deleteRow(userRecord._row);
+  removeRowsByEmail('Orders', 'UserEmail', userRecord.Email);
+  removeRowsByEmail('Contacts', 'Email', userRecord.Email);
+  return { ok: true, message: 'Account deleted successfully.' };
 }
 
 function handleListOrders() {

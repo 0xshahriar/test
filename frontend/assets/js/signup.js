@@ -8,6 +8,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const verifyForm = document.getElementById('verifyForm');
   const verifyFeedback = document.getElementById('verifyFeedback');
   const limiter = createClientRateLimiter('signup', 5, 60 * 60 * 1000);
+  const params = new URLSearchParams(window.location.search);
+  const nextParam = params.get('next');
+
+  if (nextParam) {
+    document.querySelectorAll('[data-forward-login]').forEach((link) => {
+      const url = new URL(link.getAttribute('href'), window.location.href);
+      url.searchParams.set('next', nextParam);
+      link.setAttribute('href', url.toString());
+    });
+  }
 
   if (signupForm) {
     signupForm.addEventListener('submit', async (event) => {
@@ -56,7 +66,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         if (!response.ok) throw new Error(response.error || 'Unable to verify');
         verifyFeedback.innerHTML = `<div class="alert alert-success">${response.message}</div>`;
-        setTimeout(() => (window.location.href = 'login.html'), 1500);
+        const loginUrl = new URL('login.html', window.location.href);
+        if (nextParam) {
+          loginUrl.searchParams.set('next', nextParam);
+        }
+        setTimeout(() => (window.location.href = loginUrl.toString()), 1500);
       } catch (error) {
         console.error(error);
         verifyFeedback.innerHTML = `<div class="alert alert-danger">${error.message}</div>`;

@@ -149,8 +149,21 @@ async function apiRequest(action, data = {}, method = 'POST') {
 function requireAuth(allowedRoles = []) {
   const session = getStoredSession();
   const isAdminRoute = window.location.pathname.includes('/admin/');
-  if (!session || (allowedRoles.length && !allowedRoles.includes(session.role))) {
-    window.location.href = isAdminRoute ? '../admin/login.html' : 'login.html';
+  if (!session) {
+    const loginUrl = new URL(isAdminRoute ? '../admin/login.html' : 'login.html', window.location.href);
+    if (!isAdminRoute) {
+      const nextPath = window.location.pathname + window.location.search;
+      if (nextPath) {
+        loginUrl.searchParams.set('next', nextPath);
+      }
+    }
+    window.location.href = loginUrl.toString();
+    return null;
+  }
+  if (allowedRoles.length && !allowedRoles.includes(session.role)) {
+    const fallback = isAdminRoute ? '../index.html' : 'index.html';
+    window.location.href = fallback;
+    return null;
   }
   return session;
 }
@@ -173,16 +186,14 @@ function updateAuthUI() {
           logout();
         });
       } else if (el.dataset.authLink === 'dashboard') {
-        if (session.role === 'admin') {
-          el.classList.remove('d-none');
-        } else {
-          el.classList.add('d-none');
-        }
+        el.classList.toggle('d-none', session.role !== 'admin');
+      } else if (el.dataset.authLink === 'account') {
+        el.classList.toggle('d-none', session.role !== 'customer');
       } else {
         el.classList.add('d-none');
       }
     } else {
-      if (el.dataset.authLink === 'logout' || el.dataset.authLink === 'dashboard') {
+      if (el.dataset.authLink === 'logout' || el.dataset.authLink === 'dashboard' || el.dataset.authLink === 'account') {
         el.classList.add('d-none');
       } else {
         el.classList.remove('d-none');

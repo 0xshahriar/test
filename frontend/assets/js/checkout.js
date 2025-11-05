@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const session = requireAuth(['customer', 'admin']);
+  const session = requireAuth(['customer']);
+  if (!session) return;
   const summary = document.getElementById('checkoutSummary');
   const message = document.getElementById('checkoutMessage');
   const form = document.getElementById('checkoutForm');
@@ -18,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
       <span>Subtotal</span>
       <span>$${subtotal.toFixed(2)}</span>
     </div>
-    <p class="text-muted mt-2">Payment pending. Orders marked as unpaid until manual confirmation.</p>
+    <p class="text-muted mt-2">Orders start in a pending state and remain unpaid until confirmed by our team.</p>
   `;
   form.addEventListener('submit', async (event) => {
     event.preventDefault();

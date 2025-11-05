@@ -17,7 +17,13 @@ document.addEventListener('DOMContentLoaded', () => {
         password: document.getElementById('adminLoginPassword').value
       });
       if (!response.ok) throw new Error(response.error || 'Unable to login');
-      setStoredSession({ token: response.token, expiry: response.expiry, role: response.role, name: response.name });
+      setStoredSession({
+        token: response.token,
+        expiry: response.expiry,
+        role: response.role,
+        name: response.name,
+        email: response.email
+      });
       limiter.recordSuccess();
       window.location.href = 'dashboard.html';
     } catch (error) {
