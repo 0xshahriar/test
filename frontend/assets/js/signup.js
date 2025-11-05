@@ -34,7 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
         signupFeedback.innerHTML = '<div class="alert alert-warning">Passwords do not match.</div>';
         return;
       }
-      const email = document.getElementById('signupEmail').value.trim();
+      const email = document.getElementById('signupEmail').value.trim().toLowerCase();
+      if (!/@gmail\.com$/i.test(email)) {
+        signupFeedback.innerHTML = '<div class="alert alert-warning">A Gmail address is required to create an account.</div>';
+        return;
+      }
       try {
         const response = await apiRequest('signup', {
           name: document.getElementById('signupName').value.trim(),

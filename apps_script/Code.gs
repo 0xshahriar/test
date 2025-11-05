@@ -1,6 +1,8 @@
 const SPREADSHEET_ID = 'REPLACE_WITH_SPREADSHEET_ID';
 const TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
 const ORIGIN = '*'; // Update to your front-end origin once deployed.
+const PASSWORD_SALT = 'REPLACE_WITH_SECURE_STATIC_SALT';
+const SCRIPT_TIMEZONE = Session.getScriptTimeZone() || 'Etc/UTC';
 
 const RATE_LIMIT_MESSAGES = {
   login: 'Too many login attempts. Please wait a few minutes and try again.',
@@ -113,6 +115,35 @@ function sanitizeObject(obj) {
     clean[key] = sanitize(obj[key]);
   });
   return clean;
+}
+
+function formatDateTime(date) {
+  return Utilities.formatDate(date || new Date(), SCRIPT_TIMEZONE, 'dd-MM-yyyy HH:mm:ss');
+}
+
+function parseDateTime(value) {
+  if (!value) return null;
+  const trimmed = value.toString().trim();
+  const parts = trimmed.split(/[-\s:]/);
+  if (parts.length >= 3 && parts[0].length <= 2 && parts[1].length <= 2) {
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    const hour = parts.length > 3 ? parseInt(parts[3], 10) : 0;
+    const minute = parts.length > 4 ? parseInt(parts[4], 10) : 0;
+    const second = parts.length > 5 ? parseInt(parts[5], 10) : 0;
+    if ([day, month, year, hour, minute, second].some(function (num) {
+      return isNaN(num);
+    })) {
+      return null;
+    }
+    const parsed = new Date(year, month, day, hour, minute, second);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  const fallback = new Date(trimmed);
+  return isNaN(fallback.getTime()) ? null : fallback;
 }
 
 function getRateLimitKey(prefix, identifier) {
@@ -245,12 +276,24 @@ function upsertUser(user) {
   return rowIndex;
 }
 
-function generateSalt() {
-  return Utilities.getUuid().replace(/-/g, '').slice(0, 16);
+function hashPassword(password) {
+  const signature = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    PASSWORD_SALT + password,
+    Utilities.Charset.UTF_8
+  );
+  return signature.map(function (byte) {
+    const v = (byte < 0 ? byte + 256 : byte).toString(16);
+    return v.length === 1 ? '0' + v : v;
+  }).join('');
 }
 
-function hashPassword(password, salt) {
-  const signature = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + password, Utilities.Charset.UTF_8);
+function hashPasswordWithSalt(password, salt) {
+  const signature = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    (salt || '') + password,
+    Utilities.Charset.UTF_8
+  );
   return signature.map(function (byte) {
     const v = (byte < 0 ? byte + 256 : byte).toString(16);
     return v.length === 1 ? '0' + v : v;
@@ -259,12 +302,12 @@ function hashPassword(password, salt) {
 
 function issueToken(email) {
   const token = Utilities.getUuid();
-  const expiry = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
+  const expiry = formatDateTime(new Date(Date.now() + TOKEN_TTL_MS));
   const user = findUserByEmail(email);
   if (!user) throw new Error('User not found');
   user.Token = token;
   user.TokenExpiry = expiry;
-  user.UpdatedAt = new Date().toISOString();
+  user.UpdatedAt = formatDateTime(new Date());
   upsertUser(user);
   return { token: token, expiry: expiry };
 }
@@ -282,7 +325,7 @@ function validateToken(token) {
   if (!token) return null;
   const user = findUserByToken(token);
   if (!user) return null;
-  const expiry = user.TokenExpiry ? new Date(user.TokenExpiry) : null;
+  const expiry = parseDateTime(user.TokenExpiry);
   if (!expiry || expiry.getTime() < Date.now()) {
     return null;
   }
@@ -323,14 +366,16 @@ function handleSignup(payload) {
     if (findUserByEmail(email)) {
       throw new Error('Account already exists');
     }
-    const salt = generateSalt();
-    const hash = hashPassword(password, salt);
+    if (!/@gmail\.com$/.test(email)) {
+      throw new Error('A Gmail address is required for signup.');
+    }
+    const hash = hashPassword(password);
     const verificationCode = Utilities.getUuid();
     const sheet = getSheet('Users');
     sheet.appendRow([
       email,
       name,
-      salt,
+      PASSWORD_SALT,
       hash,
       'customer',
       '',
@@ -339,8 +384,8 @@ function handleSignup(payload) {
       verificationCode,
       '',
       '',
-      new Date().toISOString(),
-      new Date().toISOString()
+      formatDateTime(new Date()),
+      formatDateTime(new Date())
     ]);
     MailApp.sendEmail({
       to: email,
@@ -368,9 +413,16 @@ function handleLogin(payload) {
     if (!user) {
       throw new Error('Invalid credentials');
     }
-    const computed = hashPassword(password, user.Salt);
+    let computed = hashPassword(password);
     if (computed !== user.PasswordHash) {
-      throw new Error('Invalid credentials');
+      const legacy = hashPasswordWithSalt(password, user.Salt);
+      if (legacy !== user.PasswordHash) {
+        throw new Error('Invalid credentials');
+      }
+      user.PasswordHash = computed;
+      user.Salt = PASSWORD_SALT;
+      user.UpdatedAt = formatDateTime(new Date());
+      upsertUser(user);
     }
     if (!user.Verified) {
       throw new Error('Please verify your email before logging in.');
@@ -402,6 +454,9 @@ function handleAdminSignup(payload) {
     if (!email || !password || !adminCode) {
       throw new Error('Email, password, and admin code are required');
     }
+    if (!/@gmail\.com$/.test(email)) {
+      throw new Error('Admin signup requires a Gmail address.');
+    }
     const settings = getSettings();
     if (!settings.adminCode || settings.adminCode !== adminCode) {
       throw new Error('Invalid admin code');
@@ -409,14 +464,13 @@ function handleAdminSignup(payload) {
     if (findUserByEmail(email)) {
       throw new Error('Account already exists');
     }
-    const salt = generateSalt();
-    const hash = hashPassword(password, salt);
+    const hash = hashPassword(password);
     const verificationCode = Utilities.getUuid();
     const sheet = getSheet('Users');
     sheet.appendRow([
       email,
       name,
-      salt,
+      PASSWORD_SALT,
       hash,
       'admin',
       '',
@@ -425,8 +479,8 @@ function handleAdminSignup(payload) {
       verificationCode,
       '',
       '',
-      new Date().toISOString(),
-      new Date().toISOString()
+      formatDateTime(new Date()),
+      formatDateTime(new Date())
     ]);
     MailApp.sendEmail({
       to: email,
@@ -466,7 +520,7 @@ function handleForgotPassword(payload) {
   }
   const resetCode = Utilities.getUuid();
   user.ResetCode = resetCode;
-  user.ResetExpiry = new Date(Date.now() + 1000 * 60 * 30).toISOString();
+  user.ResetExpiry = formatDateTime(new Date(Date.now() + 1000 * 60 * 30));
   upsertUser(user);
   MailApp.sendEmail({
     to: email,
@@ -484,17 +538,16 @@ function handleResetPassword(payload) {
   if (!user || !user.ResetCode || user.ResetCode !== resetCode) {
     throw new Error('Invalid reset code');
   }
-  const expiry = user.ResetExpiry ? new Date(user.ResetExpiry) : null;
+  const expiry = parseDateTime(user.ResetExpiry);
   if (!expiry || expiry.getTime() < Date.now()) {
     throw new Error('Reset code expired');
   }
-  const salt = generateSalt();
-  const hash = hashPassword(newPassword, salt);
-  user.Salt = salt;
+  const hash = hashPassword(newPassword);
+  user.Salt = PASSWORD_SALT;
   user.PasswordHash = hash;
   user.ResetCode = '';
   user.ResetExpiry = '';
-  user.UpdatedAt = new Date().toISOString();
+  user.UpdatedAt = formatDateTime(new Date());
   upsertUser(user);
   return { ok: true, message: 'Password reset successful.' };
 }
@@ -508,7 +561,7 @@ function handleVerifyEmail(payload) {
   }
   user.Verified = true;
   user.VerificationCode = '';
-  user.UpdatedAt = new Date().toISOString();
+  user.UpdatedAt = formatDateTime(new Date());
   upsertUser(user);
   return { ok: true, message: 'Email verified successfully.' };
 }
@@ -560,7 +613,7 @@ function handleAddProduct(payload) {
   const sheet = getSheet('Products');
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const id = Utilities.getUuid();
-  const now = new Date().toISOString();
+  const now = formatDateTime(new Date());
   const data = {
     ID: id,
     Title: payload.title || '',
@@ -610,7 +663,7 @@ function handleUpdateProduct(payload) {
   map.ImageUrl = payload.imageUrl || map.ImageUrl;
   map.Inventory = payload.inventory !== undefined ? Number(payload.inventory) : map.Inventory;
   map.Status = payload.status || map.Status;
-  map.UpdatedAt = new Date().toISOString();
+  map.UpdatedAt = formatDateTime(new Date());
   const updatedRow = headers.map(function (header) {
     return map[header] || '';
   });
@@ -643,7 +696,7 @@ function handleCreateOrder(payload) {
     throw new Error('Order items required');
   }
   const sheet = getSheet('Orders');
-  const now = new Date().toISOString();
+  const now = formatDateTime(new Date());
   sheet.appendRow([
     Utilities.getUuid(),
     user.Email,
@@ -704,7 +757,7 @@ function handleCancelOrder(payload) {
     throw new Error('Order can no longer be cancelled.');
   }
   match.order.Status = 'cancelled';
-  match.order.UpdatedAt = new Date().toISOString();
+  match.order.UpdatedAt = formatDateTime(new Date());
   const updatedRow = match.headers.map(function (header) {
     return match.order[header] || '';
   });
@@ -738,9 +791,16 @@ function handleDeleteAccount(payload) {
   if (!userRecord) {
     throw new Error('Account not found');
   }
-  const computed = hashPassword(password, userRecord.Salt);
+  let computed = hashPassword(password);
   if (computed !== userRecord.PasswordHash) {
-    throw new Error('Invalid password.');
+    const legacy = hashPasswordWithSalt(password, userRecord.Salt);
+    if (legacy !== userRecord.PasswordHash) {
+      throw new Error('Invalid password.');
+    }
+    userRecord.PasswordHash = computed;
+    userRecord.Salt = PASSWORD_SALT;
+    userRecord.UpdatedAt = formatDateTime(new Date());
+    upsertUser(userRecord);
   }
   const usersSheet = getSheet('Users');
   usersSheet.deleteRow(userRecord._row);
@@ -767,7 +827,7 @@ function handleSubmitContact(payload) {
     subject,
     message,
     'new',
-    new Date().toISOString()
+    formatDateTime(new Date())
   ]);
   return { ok: true, message: 'Message received. We will respond soon.' };
 }

@@ -19,7 +19,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       try {
-        const email = document.getElementById('adminSignupEmail').value.trim();
+        const email = document.getElementById('adminSignupEmail').value.trim().toLowerCase();
+        if (!/@gmail\.com$/i.test(email)) {
+          signupFeedback.innerHTML = '<div class="alert alert-warning">Admin registration requires a Gmail address.</div>';
+          return;
+        }
         const response = await apiRequest('adminSignup', {
           name: document.getElementById('adminSignupName').value.trim(),
           email,

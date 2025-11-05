@@ -1,5 +1,28 @@
 const API_BASE_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
 
+function parseDateTime(value) {
+  if (!value) return null;
+  const trimmed = value.toString().trim();
+  const parts = trimmed.split(/[-\s:]/);
+  if (parts.length >= 3 && parts[0].length <= 2 && parts[1].length <= 2) {
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const year = parseInt(parts[2], 10);
+    const hour = parts.length > 3 ? parseInt(parts[3], 10) : 0;
+    const minute = parts.length > 4 ? parseInt(parts[4], 10) : 0;
+    const second = parts.length > 5 ? parseInt(parts[5], 10) : 0;
+    if ([day, month, year, hour, minute, second].some((num) => Number.isNaN(num))) {
+      return null;
+    }
+    const parsed = new Date(year, month, day, hour, minute, second);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  const fallback = new Date(trimmed);
+  return Number.isNaN(fallback.getTime()) ? null : fallback;
+}
+
 function getStoredSession() {
   try {
     return JSON.parse(localStorage.getItem('tt_session'));
@@ -19,9 +42,16 @@ function setStoredSession(session) {
 function getAuthToken() {
   const session = getStoredSession();
   if (!session) return null;
-  if (session.expiry && new Date(session.expiry).getTime() < Date.now()) {
-    setStoredSession(null);
-    return null;
+  if (session.expiry) {
+    const expiryDate = parseDateTime(session.expiry);
+    if (expiryDate && expiryDate.getTime() < Date.now()) {
+      setStoredSession(null);
+      return null;
+    }
+    if (!expiryDate) {
+      setStoredSession(null);
+      return null;
+    }
   }
   return session.token;
 }

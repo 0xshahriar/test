@@ -17,17 +17,17 @@ Create a Google Spreadsheet named **Tinkling Tales Platform** with the following
 | --- | --- |
 | Email | Primary identifier for each account. |
 | Name | Display name. |
-| Salt | Random salt used for hashing. |
+| Salt | Static salt configured in `PASSWORD_SALT`. |
 | PasswordHash | SHA-256 hash of the salted password. |
 | Role | `customer` or `admin`. |
 | Token | Session token issued on login. |
-| TokenExpiry | ISO timestamp for session expiration. |
+| TokenExpiry | `DD-MM-YYYY HH:MM:SS` timestamp for session expiration. |
 | Verified | `TRUE`/`FALSE` flag for email confirmation. |
 | VerificationCode | Latest verification token sent to the user. |
 | ResetCode | One-time password reset code. |
-| ResetExpiry | ISO timestamp for reset code expiration. |
-| CreatedAt | ISO timestamp for record creation. |
-| UpdatedAt | ISO timestamp for last update. |
+| ResetExpiry | `DD-MM-YYYY HH:MM:SS` timestamp for reset code expiration. |
+| CreatedAt | `DD-MM-YYYY HH:MM:SS` timestamp for record creation. |
+| UpdatedAt | `DD-MM-YYYY HH:MM:SS` timestamp for last update. |
 
 ### `Products`
 | Column | Notes |
@@ -41,8 +41,8 @@ Create a Google Spreadsheet named **Tinkling Tales Platform** with the following
 | ImageUrl | Public URL for the main product image. |
 | Inventory | Available stock count. |
 | Status | `active` or `draft`. |
-| CreatedAt | ISO timestamp for record creation. |
-| UpdatedAt | ISO timestamp for last update. |
+| CreatedAt | `DD-MM-YYYY HH:MM:SS` timestamp for record creation. |
+| UpdatedAt | `DD-MM-YYYY HH:MM:SS` timestamp for last update. |
 
 ### `Orders`
 | Column | Notes |
@@ -53,8 +53,8 @@ Create a Google Spreadsheet named **Tinkling Tales Platform** with the following
 | Total | Numeric total for the order. |
 | Status | Fulfilment state (`pending`, `confirmed`, `delivered`, `cancelled`). |
 | PaymentStatus | `paid` / `unpaid`. |
-| CreatedAt | ISO timestamp for record creation. |
-| UpdatedAt | ISO timestamp for last update. |
+| CreatedAt | `DD-MM-YYYY HH:MM:SS` timestamp for record creation. |
+| UpdatedAt | `DD-MM-YYYY HH:MM:SS` timestamp for last update. |
 
 Customers may cancel their own orders while they remain in the `pending` state; once an order is moved to `confirmed` or `delivered`, cancellation is blocked automatically.
 
@@ -69,7 +69,7 @@ Customers can also delete their accounts from the storefront. The Apps Script ba
 | Subject | Topic of the inquiry. |
 | Message | Message body. |
 | Status | `new`, `in_progress`, or `archived`. |
-| CreatedAt | ISO timestamp for submission time. |
+| CreatedAt | `DD-MM-YYYY HH:MM:SS` timestamp for submission time. |
 
 ### `Settings`
 | Column | Notes |
@@ -86,6 +86,7 @@ Populate the first row of each sheet with the headers above. The Apps Script ass
 - **Secrets management:** Move the admin signup code and any API keys to Google Apps Script Properties instead of sheet storage for production.
 - **Transport security:** Host the static site over HTTPS (GitHub Pages is HTTPS by default). Ensure Apps Script web app is deployed with the “Anyone with the link” option and rely on token checks server-side.
 - **Rate limiting & monitoring:** Add throttling (e.g., via PropertiesService counters) for login/signup/contact actions to deter abuse.
+- **Password hashing:** Replace `REPLACE_WITH_SECURE_STATIC_SALT` in `apps_script/Code.gs` with a strong, secret salt before deployment and rotate it if compromised (re-hashing stored passwords as needed).
 - **CORS & preflight:** The sample script adds permissive `Access-Control-Allow-Origin` headers. Consider restricting origins once deployment domains are known and handle `OPTIONS` requests if using advanced fetch options.
 - **Input validation:** Client-side validation is provided for UX, but the server sanitizes inputs. Expand sanitization to whitelist HTML, reject large payloads, and escape data before injecting into HTML.
 - **Email workflows:** The password reset/verification stubs rely on `MailApp`. Configure DMARC/SPF and monitor quota usage. Consider integrating a transactional email service if volume increases.
